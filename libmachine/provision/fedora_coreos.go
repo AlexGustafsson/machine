@@ -58,21 +58,30 @@ func (provisioner *FedoraCoreOSProvisioner) GenerateDockerOptions(dockerPort int
 	driverNameLabel := fmt.Sprintf("provider=%s", provisioner.Driver.DriverName())
 	provisioner.EngineOptions.Labels = append(provisioner.EngineOptions.Labels, driverNameLabel)
 
+	// Adds defaults used by Fedora CoreOS in /etc/systemd/system/docker.service
+	// as well as in /etc/sysconfig/docker.
+	// The only removed option is the --live-restore option which is incompatible
+	// with swarm mode.
 	engineConfigTmpl := `[Service]
 Environment=TMPDIR=/var/tmp
 ExecStart=
 ExecStart=/usr/bin/dockerd \
-				 --exec-opt native.cgroupdriver=systemd \
-				 --host=unix:///var/run/docker.sock \
-				 --host=tcp://0.0.0.0:{{.DockerPort}} \
-				 --tlsverify \
-				 --tlscacert {{.AuthOptions.CaCertRemotePath}} \
-				 --tlscert {{.AuthOptions.ServerCertRemotePath}} \
-				 --tlskey {{.AuthOptions.ServerKeyRemotePath}}{{ range .EngineOptions.Labels }} \
-				 --label {{.}}{{ end }}{{ range .EngineOptions.InsecureRegistry }} \
-				 --insecure-registry {{.}}{{ end }}{{ range .EngineOptions.RegistryMirror }} \
-				 --registry-mirror {{.}}{{ end }}{{ range .EngineOptions.ArbitraryFlags }} \
-				 --{{.}}{{ end }} \$DOCKER_OPTS \$DOCKER_OPT_BIP \$DOCKER_OPT_MTU \$DOCKER_OPT_IPMASQ
+--selinux-enabled \
+--log-driver=journald \
+--default-ulimit nofile=1024:1024 \
+--init-path /usr/libexec/docker/docker-init \
+--userland-proxy-path /usr/libexec/docker/docker-proxy
+--exec-opt native.cgroupdriver=systemd \
+--host=unix:///var/run/docker.sock \
+--host=tcp://0.0.0.0:{{.DockerPort}} \
+--tlsverify \
+--tlscacert {{.AuthOptions.CaCertRemotePath}} \
+--tlscert {{.AuthOptions.ServerCertRemotePath}} \
+--tlskey {{.AuthOptions.ServerKeyRemotePath}}{{ range .EngineOptions.Labels }} \
+--label {{.}}{{ end }}{{ range .EngineOptions.InsecureRegistry }} \
+--insecure-registry {{.}}{{ end }}{{ range .EngineOptions.RegistryMirror }} \
+--registry-mirror {{.}}{{ end }}{{ range .EngineOptions.ArbitraryFlags }} \
+--{{.}}{{ end }} \$DOCKER_OPTS \$DOCKER_OPT_BIP \$DOCKER_OPT_MTU \$DOCKER_OPT_IPMASQ
 Environment={{range .EngineOptions.Env}}{{ printf "%q" . }} {{end}}
 `
 
